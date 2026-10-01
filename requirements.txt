@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>JobConnect Demo</title>
+    <style>
+      body { font-family: Arial, sans-serif; background: #f6f7fb; margin: 0; padding: 24px; color: #111827; }
+      .container { max-width: 1100px; margin: 0 auto; }
+      .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+      .card { background: white; border: 1px solid #e5e7eb; border-radius: 16px; padding: 24px; box-shadow: 0 12px 24px rgba(0,0,0,0.04); }
+      form { display: grid; gap: 12px; }
+      input, select, button { padding: 10px 12px; border-radius: 10px; border: 1px solid #d1d5db; font-size: 14px; }
+      button { background: #6d5dfc; color: white; border: none; cursor: pointer; }
+      ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
+      li { border: 1px solid #e5e7eb; padding: 14px; border-radius: 12px; }
+      .muted { color: #6b7280; }
+      .row { display: flex; gap: 12px; justify-content: space-between; align-items: center; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>JobConnect backend demo</h1>
+
+      <div class="grid">
+        <div class="card">
+          <h2>Register</h2>
+          <form id="registerForm">
+            <input type="text" name="firstName" placeholder="First name" required />
+            <input type="text" name="lastName" placeholder="Last name" required />
+            <input type="email" name="email" placeholder="Email" required />
+            <input type="password" name="password" placeholder="Password" required />
+            <select name="role">
+              <option value="jobseeker">Job seeker</option>
+              <option value="organization">Organization</option>
+            </select>
+            <button type="submit">Create account</button>
+          </form>
+        </div>
+
+        <div class="card">
+          <h2>Login</h2>
+          <form id="loginForm">
+            <input type="email" name="email" placeholder="Email" required />
+            <input type="password" name="password" placeholder="Password" required />
+            <button type="submit">Login</button>
+          </form>
+          <div id="status" class="muted" style="margin-top:16px;"></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:24px;">
+        <div class="row">
+          <h2 style="margin:0;">Available jobs</h2>
+          <button id="fetchJobs">Refresh</button>
+        </div>
+        <ul id="jobsList"></ul>
+      </div>
+    </div>
+
+    <script>
+      const statusBox = document.getElementById('status');
+      const jobsList = document.getElementById('jobsList');
+
+      function setStatus(message, isError = false) {
+        statusBox.textContent = message;
+        statusBox.style.color = isError ? '#b42318' : '#0f9f6e';
+      }
+
+      async function apiFetch(path, options = {}) {
+        const response = await fetch(path, {
+          headers: { 'Content-Type': 'application/json' },
+          ...options
+        });
+
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(data.error || 'Request failed');
+        }
+        return data;
+      }
+
+      async function loadJobs() {
+        try {
+          const data = await apiFetch('/api/jobs');
+          jobsList.innerHTML = '';
+
+          if (!data.jobs || data.jobs.length === 0) {
+            jobsList.innerHTML = '<li class="muted">No jobs available yet.</li>';
+            return;
+          }
+
+          data.jobs.forEach((job) => {
+            const li = document.createElement('li');
+            li.innerHTML = `
+              <strong>${job.title}</strong><br>
+              <span class="muted">${job.company} • ${job.location}</span><br>
+              <span>${job.salary} • ${job.job_type}</span>
+            `;
+            jobsList.appendChild(li);
+          });
+        } catch (error) {
+          setStatus(error.message, true);
+        }
+      }
+
+      document.getElementById('registerForm').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const formData = Object.fromEntries(new FormData(event.target).entries());
+
+        try {
+          await apiFetch('/api/register', {
+            method: 'POST',
+            body: JSON.stringify(formData)
+          });
+          setStatus('Account created successfully.');
+          event.target.reset();
+        } catch (error) {
+          setStatus(error.message, true);
+        }
+      });
+
+      document.getElementById('loginForm').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const formData = Object.fromEntries(new FormData(event.target).entries());
+
+        try {
+          const data = await apiFetch('/api/login', {
+            method: 'POST',
+            body: JSON.stringify(formData)
+          });
+          setStatus(`Welcome, ${data.user.firstName} ${data.user.lastName}`);
+          localStorage.setItem('jobconnect-user', JSON.stringify(data.user));
+        } catch (error) {
+          setStatus(error.message, true);
+        }
+      });
+
+      document.getElementById('fetchJobs').addEventListener('click', loadJobs);
+      loadJobs();
+    </script>
+  </body>
+</html>
